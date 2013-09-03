@@ -32,6 +32,8 @@ Functions
 ## DEALINGS IN THE SOFTWARE.
 
 ## Modifications by Travis Oliphant and Enthought, Inc. for inclusion in SciPy
+## Modifications by Simon W. Funke for support of user-specific inner products 
+## and parallel execution
 
 from __future__ import division, print_function, absolute_import
 
@@ -43,13 +45,12 @@ from .optimize import (approx_fprime, MemoizeJac, Result,
 
 __all__ = ['fmin_l_bfgs_b']
 
-
 def fmin_l_bfgs_b(func, x0, fprime=None, args=(),
                   approx_grad=0,
                   bounds=None, m=10, factr=1e7, pgtol=1e-5,
                   epsilon=1e-8,
                   iprint=-1, maxfun=15000, maxiter=15000, disp=None,
-                  callback=None):
+                  callback=None, inner_product=None):
     """
     Minimize a function func using the L-BFGS-B algorithm.
 
@@ -106,6 +107,7 @@ def fmin_l_bfgs_b(func, x0, fprime=None, args=(),
     callback : callable, optional
         Called after each iteration, as ``callback(xk)``, where ``xk`` is the
         current parameter vector.
+    inner_product : a user-specific function that computes the inner product of two vectors
 
     Returns
     -------
@@ -180,7 +182,8 @@ def fmin_l_bfgs_b(func, x0, fprime=None, args=(),
             'eps': epsilon,
             'maxfun': maxfun,
             'maxiter': maxiter,
-            'callback': callback}
+            'callback': callback,
+            'inner_product': inner_product}
 
     res = _minimize_lbfgsb(fun, x0, args=args, jac=jac, bounds=bounds,
                            **opts)
@@ -198,7 +201,7 @@ def fmin_l_bfgs_b(func, x0, fprime=None, args=(),
 def _minimize_lbfgsb(fun, x0, args=(), jac=None, bounds=None,
                      disp=None, maxcor=10, ftol=2.2204460492503131e-09,
                      gtol=1e-5, eps=1e-8, maxfun=15000, maxiter=15000,
-                     iprint=-1, callback=None, **unknown_options):
+                     iprint=-1, callback=None, inner_product=None, **unknown_options):
     """
     Minimize a scalar function of one or more variables using the L-BFGS-B
     algorithm.
@@ -300,9 +303,14 @@ def _minimize_lbfgsb(fun, x0, args=(), jac=None, bounds=None,
 
     while 1:
 #        x, f, g, wa, iwa, task, csave, lsave, isave, dsave = \
-        _lbfgsb.setulb(m, x, low_bnd, upper_bnd, nbd, f, g, factr,
-                       pgtol, wa, iwa, task, iprint, csave, lsave,
-                       isave, dsave)
+        if inner_product:
+            _lbfgsb.setulb(m, x, low_bnd, upper_bnd, nbd, f, g, factr,
+                           pgtol, wa, iwa, task, iprint, csave, lsave,
+                           isave, dsave, inner_product)
+        else:
+             _lbfgsb.setulb(m, x, low_bnd, upper_bnd, nbd, f, g, factr,
+                           pgtol, wa, iwa, task, iprint, csave, lsave,
+                           isave, dsave)
         task_str = task.tostring()
         if task_str.startswith(b'FG'):
             if n_function_evals[0] > maxfun:

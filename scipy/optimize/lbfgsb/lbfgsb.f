@@ -40,7 +40,10 @@ c                        March  2011
 c                                                 
 c============================================================================= 
       subroutine setulb(n, m, x, l, u, nbd, f, g, factr, pgtol, wa, iwa,
-     +                 task, iprint, csave, lsave, isave, dsave)
+     +                 task, iprint, csave, lsave, isave, dsave, 
+     +                 inner_product)
+     
+      external inner_product
  
       character*60     task, csave
       logical          lsave(4)
@@ -49,7 +52,9 @@ c=============================================================================
       double precision f, factr, pgtol, x(n), l(n), u(n), g(n),
 c
 c-jlm-jn
-     +                 wa(2*m*n + 5*n + 11*m*m + 8*m), dsave(29)
+     +                 wa(2*m*n + 5*n + 11*m*m + 8*m), dsave(29),
+     +                 ddot
+      double precision, optional :: inner_product
  
 c     ************
 c
@@ -199,6 +204,9 @@ c         dsave(15) = the slope of the line search function at
 c                                 the starting point of the line search;
 c         dsave(16) = the square of the 2-norm of the line search
 c                                                      direction vector.
+c         inner_product = an (optional) function pointer for computing the inner 
+c                      product of two vectors. 
+c                      If not specified, the standard Euclidian inner product is used.
 c
 c     Subprograms called:
 c
@@ -266,12 +274,22 @@ c-jlm-jn
       lxp  = isave(15)
       lwa  = isave(16)
 
+      if (present(inner_product)) then
       call mainlb(n,m,x,l,u,nbd,f,g,factr,pgtol,
      +  wa(lws),wa(lwy),wa(lsy),wa(lss), wa(lwt),
      +  wa(lwn),wa(lsnd),wa(lz),wa(lr),wa(ld),wa(lt),wa(lxp),
      +  wa(lwa),
      +  iwa(1),iwa(n+1),iwa(2*n+1),task,iprint, 
-     +  csave,lsave,isave(22),dsave)
+     +  csave,lsave,isave(22),dsave, inner_product)
+      endif
+      if (.NOT. present(inner_product)) then
+      call mainlb(n,m,x,l,u,nbd,f,g,factr,pgtol,
+     +  wa(lws),wa(lwy),wa(lsy),wa(lss), wa(lwt),
+     +  wa(lwn),wa(lsnd),wa(lz),wa(lr),wa(ld),wa(lt),wa(lxp),
+     +  wa(lwa),
+     +  iwa(1),iwa(n+1),iwa(2*n+1),task,iprint, 
+     +  csave,lsave,isave(22),dsave, ddot)
+      endif
 
       return
 
@@ -282,7 +300,8 @@ c======================= The end of setulb =============================
       subroutine mainlb(n, m, x, l, u, nbd, f, g, factr, pgtol, ws, wy,
      +                  sy, ss, wt, wn, snd, z, r, d, t, xp, wa, 
      +                  index, iwhere, indx2, task,
-     +                  iprint, csave, lsave, isave, dsave)
+     +                  iprint, csave, lsave, isave, dsave, 
+     +                  inner_product)
       implicit none
       character*60     task, csave
       logical          lsave(4)
@@ -294,7 +313,9 @@ c-jlm-jn
      +                 xp(n), 
      +                 wa(8*m), 
      +                 ws(n, m), wy(n, m), sy(m, m), ss(m, m), 
-     +                 wt(m, m), wn(2*m, 2*m), snd(2*m, 2*m), dsave(29)
+     +                 wt(m, m), wn(2*m, 2*m), snd(2*m, 2*m), dsave(29),
+     +                 test
+      double precision :: inner_product
 
 c     ************
 c
@@ -859,7 +880,7 @@ c     Compute d=newx-oldx, r=newg-oldg, rr=y'y and dr=y's.
       do 42 i = 1, n
          r(i) = g(i) - r(i)
   42  continue
-      rr = ddot(n,r,1,r,1)
+      rr = inner_product(n,r,1,r,1)
       if (stp .eq. one) then  
          dr = gd - gdold
          ddum = -gdold
