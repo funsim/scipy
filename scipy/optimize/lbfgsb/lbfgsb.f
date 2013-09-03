@@ -313,8 +313,7 @@ c-jlm-jn
      +                 xp(n), 
      +                 wa(8*m), 
      +                 ws(n, m), wy(n, m), sy(m, m), ss(m, m), 
-     +                 wt(m, m), wn(2*m, 2*m), snd(2*m, 2*m), dsave(29),
-     +                 test
+     +                 wt(m, m), wn(2*m, 2*m), snd(2*m, 2*m), dsave(29)
       double precision :: inner_product
 
 c     ************
@@ -503,7 +502,7 @@ c     ************
      +                 head,col,iter,itail,iupdat,
      +                 nseg,nfgv,info,ifun,
      +                 iword,nfree,nact,ileave,nenter
-      double precision theta,fold,ddot,dr,rr,tol,
+      double precision theta,fold,dr,rr,tol,
      +                 xstep,sbgnrm,ddum,dnorm,dtd,epsmch,
      +                 cpu1,cpu2,cachyt,sbtime,lnscht,time1,time2,
      +                 gd,gdold,stp,stpmx,time
@@ -696,7 +695,7 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       call cauchy(n,x,l,u,nbd,g,indx2,iwhere,t,d,z,
      +            m,wy,ws,sy,wt,theta,col,head,
      +            wa(1),wa(2*m+1),wa(4*m+1),wa(6*m+1),nseg,
-     +            iprint, sbgnrm, info, epsmch)
+     +            iprint, sbgnrm, info, epsmch, inner_product)
       if (info .ne. 0) then 
 c         singular triangular system detected; refresh the lbfgs memory.
          if(iprint .ge. 1) write (6, 1005)
@@ -743,7 +742,8 @@ c       where     E = [-I  0]
 c                     [ 0  I]
 
       if (wrk) call formk(n,nfree,index,nenter,ileave,indx2,iupdat,
-     +                 updatd,wn,snd,m,ws,wy,sy,theta,col,head,info)
+     +                 updatd,wn,snd,m,ws,wy,sy,theta,col,head,info,
+     +                 inner_product)
       if (info .ne. 0) then
 c          nonpositive definiteness in Cholesky factorization;
 c          refresh the lbfgs memory and restart the iteration.
@@ -804,7 +804,7 @@ c     Generate the search direction d:=z-x.
  666  continue
       call lnsrlb(n,l,u,nbd,x,f,fold,gd,gdold,g,d,r,t,z,stp,dnorm,
      +            dtd,xstep,stpmx,iter,ifun,iback,nfgv,info,task,
-     +            boxed,cnstnd,csave,isave(22),dsave(17))
+     +            boxed,cnstnd,csave,isave(22),dsave(17),inner_product)
       if (info .ne. 0 .or. iback .ge. 20) then
 c          restore the previous iterate.
          call dcopy(n,t,1,x,1)
@@ -910,7 +910,7 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c     Update matrices WS and WY and form the middle matrix in B.
 
       call matupd(n,m,ws,wy,sy,ss,d,r,itail,
-     +            iupdat,col,head,theta,rr,dr,stp,dtd)
+     +            iupdat,col,head,theta,rr,dr,stp,dtd,inner_product)
 
 c     Form the upper half of the pds T = theta*SS + L*D^(-1)*L';
 c        Store T in the upper triangular of the array wt;
@@ -1239,7 +1239,8 @@ c======================== The end of bmv ===============================
 
       subroutine cauchy(n, x, l, u, nbd, g, iorder, iwhere, t, d, xcp, 
      +                  m, wy, ws, sy, wt, theta, col, head, p, c, wbp, 
-     +                  v, nseg, iprint, sbgnrm, info, epsmch)
+     +                  v, nseg, iprint, sbgnrm, info, epsmch, 
+     +                  inner_product)
       implicit none
       integer          n, m, head, col, nseg, iprint, info, 
      +                 nbd(n), iorder(n), iwhere(n)
@@ -1429,8 +1430,8 @@ c     ************
       integer          i,j,col2,nfree,nbreak,pointr,
      +                 ibp,nleft,ibkmin,iter
       double precision f1,f2,dt,dtm,tsum,dibp,zibp,dibp2,bkmin,
-     +                 tu,tl,wmc,wmp,wmw,ddot,tj,tj0,neggi,sbgnrm,
-     +                 f2_org
+     +                 tu,tl,wmc,wmp,wmw,tj,tj0,neggi,sbgnrm,
+     +                 f2_org,inner_product
       double precision one,zero
       parameter        (one=1.0d0,zero=0.0d0)
  
@@ -1557,7 +1558,7 @@ c     Initialize derivative f2.
       if (col .gt. 0) then
          call bmv(m,sy,wt,col,p,v,info)
          if (info .ne. 0) return
-         f2 = f2 - ddot(col2,v,1,p,1)
+         f2 = f2 - inner_product(col2,v,1,p,1)
       endif
       dtm = -f1/f2
       tsum = zero
@@ -1669,9 +1670,9 @@ c           the row of W corresponding to the breakpoint encountered.
 c           compute (wbp)Mc, (wbp)Mp, and (wbp)M(wbp)'.
          call bmv(m,sy,wt,col,wbp,v,info)
          if (info .ne. 0) return
-         wmc = ddot(col2,c,1,v,1)
-         wmp = ddot(col2,p,1,v,1) 
-         wmw = ddot(col2,wbp,1,v,1)
+         wmc = inner_product(col2,c,1,v,1)
+         wmp = inner_product(col2,p,1,v,1) 
+         wmw = inner_product(col2,wbp,1,v,1)
  
 c           update p = p - dibp*wbp. 
          call daxpy(col2,-dibp,wbp,1,p,1)
@@ -1865,7 +1866,7 @@ c======================= The end of errclb =============================
  
       subroutine formk(n, nsub, ind, nenter, ileave, indx2, iupdat, 
      +                 updatd, wn, wn1, m, ws, wy, sy, theta, col,
-     +                 head, info)
+     +                 head, info, inner_product)
 
       integer          n, nsub, m, col, head, nenter, ileave, iupdat,
      +                 info, ind(n), indx2(n)
@@ -1998,7 +1999,7 @@ c     ************
 
       integer          m2,ipntr,jpntr,iy,is,jy,js,is1,js1,k1,i,k,
      +                 col2,pbegin,pend,dbegin,dend,upcl
-      double precision ddot,temp1,temp2,temp3,temp4
+      double precision inner_product,temp1,temp2,temp3,temp4
       double precision one,zero
       parameter        (one=1.0d0,zero=0.0d0)
 
@@ -2170,7 +2171,8 @@ c        upper triangle of (2,2) block of wn.
 
       do 72 is = col+1, col2
          do 74 js = is, col2
-               wn(is,js) = wn(is,js) + ddot(col,wn(1,is),1,wn(1,js),1)
+               wn(is,js) = wn(is,js) + inner_product(col,wn(1,is),
+     +                       1,wn(1,js),1)
   74        continue
   72     continue
 
@@ -2471,7 +2473,7 @@ c====================== The end of hpsolb ==============================
       subroutine lnsrlb(n, l, u, nbd, x, f, fold, gd, gdold, g, d, r, t,
      +                  z, stp, dnorm, dtd, xstep, stpmx, iter, ifun,
      +                  iback, nfgv, info, task, boxed, cnstnd, csave,
-     +                  isave, dsave)
+     +                  isave, dsave, inner_product)
 
       character*60     task, csave
       logical          boxed, cnstnd
@@ -2508,7 +2510,7 @@ c
 c     **********
 
       integer          i
-      double           precision ddot,a1,a2
+      double           precision inner_product,a1,a2
       double precision one,zero,big
       parameter        (one=1.0d0,zero=0.0d0,big=1.0d+10)
       double precision ftol,gtol,xtol
@@ -2516,7 +2518,7 @@ c     **********
 
       if (task(1:5) .eq. 'FG_LN') goto 556
 
-      dtd = ddot(n,d,1,d,1)
+      dtd = inner_product(n,d,1,d,1)
       dnorm = sqrt(dtd)
 
 c     Determine the maximum step length.
@@ -2562,7 +2564,7 @@ c     Determine the maximum step length.
       iback = 0
       csave = 'START'
  556  continue
-      gd = ddot(n,g,1,d,1)
+      gd = inner_product(n,g,1,d,1)
       if (ifun .eq. 0) then
          gdold=gd
          if (gd .ge. zero) then
@@ -2600,7 +2602,8 @@ c                               Line search is impossible.
 c======================= The end of lnsrlb =============================
 
       subroutine matupd(n, m, ws, wy, sy, ss, d, r, itail, 
-     +                  iupdat, col, head, theta, rr, dr, stp, dtd)
+     +                  iupdat, col, head, theta, rr, dr, stp, dtd, 
+     +                  inner_product)
  
       integer          n, m, itail, iupdat, col, head
       double precision theta, rr, dr, stp, dtd, d(n), r(n), 
@@ -2631,7 +2634,7 @@ c
 c     ************
  
       integer          j,pointr
-      double precision ddot
+      double precision inner_product
       double precision one
       parameter        (one=1.0d0)
 
@@ -2669,8 +2672,8 @@ c        add new information: the last row of SY
 c                                             and the last column of SS:
       pointr = head
       do 51 j = 1, col - 1
-         sy(col,j) = ddot(n,d,1,wy(1,pointr),1)
-         ss(j,col) = ddot(n,ws(1,pointr),1,d,1)
+         sy(col,j) = inner_product(n,d,1,wy(1,pointr),1)
+         ss(j,col) = inner_product(n,ws(1,pointr),1,d,1)
          pointr = mod(pointr,m) + 1
   51  continue
       if (stp .eq. one) then
