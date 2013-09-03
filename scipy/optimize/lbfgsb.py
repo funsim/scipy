@@ -306,7 +306,7 @@ def _minimize_lbfgsb(fun, x0, args=(), jac=None, bounds=None,
         if inner_product:
             _lbfgsb.setulb(m, x, low_bnd, upper_bnd, nbd, f, g, factr,
                            pgtol, wa, iwa, task, iprint, csave, lsave,
-                           isave, dsave, inner_product)
+                           isave, dsave, inner_product=inner_product)
         else:
              _lbfgsb.setulb(m, x, low_bnd, upper_bnd, nbd, f, g, factr,
                            pgtol, wa, iwa, task, iprint, csave, lsave,

@@ -10,4 +10,4 @@ def inner(n, x, xinc, y, yinc):
 x0 = [1.3, 0.7, 0.8, 1.9, 1.2]
 
 fmin_l_bfgs_b(rosen, x0, fprime=rosen_der, pgtol=1e-6, disp=True, inner_product=inner)
-fmin_l_bfgs_b(rosen, x0, fprime=rosen_der, pgtol=1e-6, disp=True)
+#fmin_l_bfgs_b(rosen, x0, fprime=rosen_der, pgtol=1e-6, disp=True)
