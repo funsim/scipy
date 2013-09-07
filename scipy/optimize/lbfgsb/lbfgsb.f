@@ -52,8 +52,7 @@ c=============================================================================
       double precision f, factr, pgtol, x(n), l(n), u(n), g(n),
 c
 c-jlm-jn
-     +                 wa(2*m*n + 5*n + 11*m*m + 8*m), dsave(29),
-     +                 ddot
+     +                 wa(2*m*n + 5*n + 11*m*m + 8*m), dsave(29)
       double precision, optional :: inner_product
  
 c     ************
@@ -288,7 +287,7 @@ c-jlm-jn
      +  wa(lwn),wa(lsnd),wa(lz),wa(lr),wa(ld),wa(lt),wa(lxp),
      +  wa(lwa),
      +  iwa(1),iwa(n+1),iwa(2*n+1),task,iprint, 
-     +  csave,lsave,isave(22),dsave, ddot)
+     +  csave,lsave,isave(22),dsave, inner_product)
       endif
 
       return
@@ -742,8 +741,7 @@ c       where     E = [-I  0]
 c                     [ 0  I]
 
       if (wrk) call formk(n,nfree,index,nenter,ileave,indx2,iupdat,
-     +                 updatd,wn,snd,m,ws,wy,sy,theta,col,head,info,
-     +                 inner_product)
+     +                 updatd,wn,snd,m,ws,wy,sy,theta,col,head,info)
       if (info .ne. 0) then
 c          nonpositive definiteness in Cholesky factorization;
 c          refresh the lbfgs memory and restart the iteration.
@@ -1431,7 +1429,7 @@ c     ************
      +                 ibp,nleft,ibkmin,iter
       double precision f1,f2,dt,dtm,tsum,dibp,zibp,dibp2,bkmin,
      +                 tu,tl,wmc,wmp,wmw,tj,tj0,neggi,sbgnrm,
-     +                 f2_org,inner_product
+     +                 f2_org,inner_product,ddot
       double precision one,zero
       parameter        (one=1.0d0,zero=0.0d0)
  
@@ -1486,18 +1484,10 @@ c              reset iwhere(i).
                if (abs(neggi) .le. zero) iwhere(i) = -3
             endif
          endif 
-         pointr = head
          if (iwhere(i) .ne. 0 .and. iwhere(i) .ne. -1) then
             d(i) = zero
          else
             d(i) = neggi
-            f1 = f1 - neggi*neggi
-c             calculate p := p - W'e_i* (g_i).
-            do 40 j = 1, col
-               p(j) = p(j) +  wy(i,pointr)* neggi
-               p(col + j) = p(col + j) + ws(i,pointr)*neggi
-               pointr = mod(pointr,m) + 1
-  40        continue 
             if (nbd(i) .le. 2 .and. nbd(i) .ne. 0
      +                        .and. neggi .lt. zero) then
 c                                 x(i) + d(i) is bounded; compute t(i).
@@ -1525,6 +1515,16 @@ c                x(i) + d(i) is not bounded.
             endif
          endif
   50  continue 
+      f1 = -inner_product(n, d, 1, d, 1)
+
+c     calculate p := p - W'e_i* (g_i).
+      pointr = head
+      do 40 j = 1, col
+         p(j) = p(j) +  inner_product(n, wy(:,pointr), 1, d, 1)
+         p(col + j) = p(col + j) + inner_product(n, ws(:,pointr), 1, 
+     +                                           d, 1)
+         pointr = mod(pointr,m) + 1
+  40  continue 
  
 c     The indices of the nonzero components of d are now stored
 c       in iorder(1),...,iorder(nbreak) and iorder(nfree),...,iorder(n).
@@ -1558,7 +1558,7 @@ c     Initialize derivative f2.
       if (col .gt. 0) then
          call bmv(m,sy,wt,col,p,v,info)
          if (info .ne. 0) return
-         f2 = f2 - inner_product(col2,v,1,p,1)
+         f2 = f2 - ddot(col2,v,1,p,1)
       endif
       dtm = -f1/f2
       tsum = zero
@@ -1670,9 +1670,9 @@ c           the row of W corresponding to the breakpoint encountered.
 c           compute (wbp)Mc, (wbp)Mp, and (wbp)M(wbp)'.
          call bmv(m,sy,wt,col,wbp,v,info)
          if (info .ne. 0) return
-         wmc = inner_product(col2,c,1,v,1)
-         wmp = inner_product(col2,p,1,v,1) 
-         wmw = inner_product(col2,wbp,1,v,1)
+         wmc = ddot(col2,c,1,v,1)
+         wmp = ddot(col2,p,1,v,1) 
+         wmw = ddot(col2,wbp,1,v,1)
  
 c           update p = p - dibp*wbp. 
          call daxpy(col2,-dibp,wbp,1,p,1)
@@ -1792,7 +1792,8 @@ c     ************
             a2 = theta*wa(col + j)
             do 32 i = 1, nfree
                k = index(i)
-               r(i) = r(i) + wy(k,pointr)*a1 + ws(k,pointr)*a2
+c FIXME : use inner product
+               r(i) = r(i) + wy(k,pointr)*a1 + ws(k,pointr)*a2 
   32        continue
             pointr = mod(pointr,m) + 1
   34     continue
@@ -1866,7 +1867,7 @@ c======================= The end of errclb =============================
  
       subroutine formk(n, nsub, ind, nenter, ileave, indx2, iupdat, 
      +                 updatd, wn, wn1, m, ws, wy, sy, theta, col,
-     +                 head, info, inner_product)
+     +                 head, info)
 
       integer          n, nsub, m, col, head, nenter, ileave, iupdat,
      +                 info, ind(n), indx2(n)
@@ -1999,7 +2000,7 @@ c     ************
 
       integer          m2,ipntr,jpntr,iy,is,jy,js,is1,js1,k1,i,k,
      +                 col2,pbegin,pend,dbegin,dend,upcl
-      double precision inner_product,temp1,temp2,temp3,temp4
+      double precision ddot,temp1,temp2,temp3,temp4
       double precision one,zero
       parameter        (one=1.0d0,zero=0.0d0)
 
@@ -2171,7 +2172,7 @@ c        upper triangle of (2,2) block of wn.
 
       do 72 is = col+1, col2
          do 74 js = is, col2
-               wn(is,js) = wn(is,js) + inner_product(col,wn(1,is),
+               wn(is,js) = wn(is,js) + ddot(col,wn(1,is),
      +                       1,wn(1,js),1)
   74        continue
   72     continue
