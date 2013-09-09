@@ -1792,7 +1792,6 @@ c     ************
             a2 = theta*wa(col + j)
             do 32 i = 1, nfree
                k = index(i)
-c FIXME : use inner product
                r(i) = r(i) + wy(k,pointr)*a1 + ws(k,pointr)*a2 
   32        continue
             pointr = mod(pointr,m) + 1
